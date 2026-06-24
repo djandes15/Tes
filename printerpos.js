@@ -1,23 +1,19 @@
 // =============================================================================
-// DJANDES - Thermal Printer Module (UPDATED WITH PAYMENT METHODS)
-// Mendukung:
-//   1. Web Bluetooth API (butuh HTTPS + Chrome/Edge)
-//   2. Fallback window.print() 58mm (bekerja di lokal file://)
+// DJANDES - Thermal Printer Module (UPDATED WITH ADVANCED CLOUD LOGIC)
+// Mendukung: Web Bluetooth API & Fallback window.print() 58mm
 // =============================================================================
 
 (function () {
-    // ---- State ----
     let _printerDevice = null;
     let _printerCharacteristic = null;
     let _connected = false;
 
-    // UUID umum printer thermal BLE (Xprinter, GOOJPRT, Rongta, dll.)
     const PRINTER_SERVICE_UUIDS = [
-        '000018f0-0000-1000-8000-00805f9b34fb', // Standard SPP BLE
-        '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Microchip
-        'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // Xprinter/GOOJPRT
-        '0000ff00-0000-1000-8000-00805f9b34fb', // Generic
-        '0000ffe0-0000-1000-8000-00805f9b34fb', // HM-11 BLE Module
+        '000018f0-0000-1000-8000-00805f9b34fb',
+        '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+        'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+        '0000ff00-0000-1000-8000-00805f9b34fb',
+        '0000ffe0-0000-1000-8000-00805f9b34fb',
     ];
 
     const PRINTER_CHAR_UUIDS = [
@@ -28,17 +24,14 @@
         '0000ffe1-0000-1000-8000-00805f9b34fb',
     ];
 
-    // ESC/POS Constants
     const ESC = 0x1B;
     const GS = 0x1D;
     const LF = 0x0A;
 
-    // ---- Cek ketersediaan Web Bluetooth ----
     function isBluetoothAvailable() {
         return !!(navigator.bluetooth);
     }
 
-    // ---- Update tampilan status printer di UI ----
     function updatePrinterStatusUI() {
         const statusDot = document.getElementById('printer-status-dot');
         const statusText = document.getElementById('printer-status-text');
@@ -47,21 +40,16 @@
         if (!statusDot || !statusText || !connectBtn) return;
 
         if (_connected) {
-            statusDot.className = 'printer-dot connected';
+            statusDot.className = 'indicator-dot dot-connected mr-1';
             statusText.textContent = 'Printer: Terhubung ✓';
             connectBtn.textContent = 'Putuskan';
-            connectBtn.className = 'printer-connect-btn disconnecting';
         } else {
-            statusDot.className = 'printer-dot disconnected';
-            statusText.textContent = isBluetoothAvailable()
-                ? 'Printer: Belum terhubung'
-                : 'Bluetooth tidak tersedia (butuh HTTPS)';
+            statusDot.className = 'indicator-dot dot-disconnected mr-1';
+            statusText.textContent = isBluetoothAvailable() ? 'Printer: Belum terhubung' : 'Bluetooth tidak tersedia (HTTPS)';
             connectBtn.textContent = 'Hubungkan Printer';
-            connectBtn.className = 'printer-connect-btn';
         }
     }
 
-    // ---- Koneksi ke Printer Bluetooth ----
     async function connectPrinter() {
         if (_connected) {
             disconnectPrinter();
@@ -69,81 +57,50 @@
         }
 
         if (!isBluetoothAvailable()) {
-            showPrinterNotification(
-                'Web Bluetooth tidak tersedia.\n' +
-                'Pastikan:\n' +
-                '• Menggunakan Chrome atau Edge\n' +
-                '• Halaman diakses via HTTPS (bukan file://)\n\n' +
-                'Untuk saat ini gunakan tombol "Cetak via Browser".',
-                'warning'
-            );
+            showPrinterNotification('Web Bluetooth memerlukan koneksi HTTPS dan browser Chrome/Edge.', 'warning');
             return;
         }
 
         try {
             showPrinterNotification('Mencari printer Bluetooth...', 'info');
-
             _printerDevice = await navigator.bluetooth.requestDevice({
                 acceptAllDevices: true,
                 optionalServices: PRINTER_SERVICE_UUIDS
             });
 
             _printerDevice.addEventListener('gattserverdisconnected', onPrinterDisconnected);
-
             const server = await _printerDevice.gatt.connect();
-            showPrinterNotification('Terhubung ke GATT server...', 'info');
 
             let service = null;
             for (const uuid of PRINTER_SERVICE_UUIDS) {
-                try {
-                    service = await server.getPrimaryService(uuid);
-                    if (service) break;
-                } catch (_) { }
+                try { service = await server.getPrimaryService(uuid); if (service) break; } catch (_) {}
             }
-
-            if (!service) {
-                throw new Error('Tidak menemukan service printer yang kompatibel.');
-            }
+            if (!service) throw new Error('Service printer tidak kompatibel.');
 
             let characteristic = null;
             for (const uuid of PRINTER_CHAR_UUIDS) {
-                try {
-                    characteristic = await service.getCharacteristic(uuid);
-                    if (characteristic) break;
-                } catch (_) { }
+                try { characteristic = await service.getCharacteristic(uuid); if (characteristic) break; } catch (_) {}
             }
-
             if (!characteristic) {
                 const characteristics = await service.getCharacteristics();
-                characteristic = characteristics.find(c =>
-                    c.properties.write || c.properties.writeWithoutResponse
-                );
+                characteristic = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
             }
-
-            if (!characteristic) {
-                throw new Error('Tidak menemukan characteristic yang bisa ditulis pada printer ini.');
-            }
+            if (!characteristic) throw new Error('Characteristic write tidak ditemukan.');
 
             _printerCharacteristic = characteristic;
             _connected = true;
             updatePrinterStatusUI();
-            showPrinterNotification(`✓ Printer "${_printerDevice.name || 'Thermal Printer'}" terhubung!`, 'success');
-
+            showPrinterNotification(`✓ Printer "${_printerDevice.name || 'Thermal'} Terhubung!`, 'success');
         } catch (err) {
             _connected = false;
             _printerCharacteristic = null;
             updatePrinterStatusUI();
-            if (err.name !== 'NotFoundError') {
-                showPrinterNotification('Gagal koneksi: ' + err.message, 'error');
-            }
+            if (err.name !== 'NotFoundError') showPrinterNotification('Gagal: ' + err.message, 'error');
         }
     }
 
-    // ---- Putuskan koneksi ----
     function disconnectPrinter() {
-        if (_printerDevice && _printerDevice.gatt.connected) {
-            _printerDevice.gatt.disconnect();
-        }
+        if (_printerDevice && _printerDevice.gatt.connected) _printerDevice.gatt.disconnect();
         onPrinterDisconnected();
     }
 
@@ -154,60 +111,45 @@
         showPrinterNotification('Printer terputus.', 'info');
     }
 
-    // ---- Build ESC/POS byte array ----
+    // BUILD STRING BYTE FORMAT ESC/POS UNTUK PRINTER BLUETOOTH
     function buildEscPos(customerName, pickupDate, pickupTime) {
-        // Ambil data dari appData global
         const cartData = window.appData ? window.appData.cart : {};
         const cartInfoData = window.appData ? window.appData.cartInfo : {};
         const products = window.appData ? window.appData.products : [];
         const siteName = window.appData ? window.appData.siteSettings.title : 'DJANDES';
         const address = window.appData ? window.appData.siteSettings.description : '';
 
-        // Ambil Data Finansial & Metode Pembayaran Baru dari UI
         const paymentStatus = document.getElementById('payment-status')?.value || 'Lunas';
         const amountPaid = parseFloat(document.getElementById('amount-paid')?.value) || 0;
+        const activeNotaId = window.appData.activeNotaId || null;
+        const previousDp = window.appData.previousDpAmount || 0;
 
         const bytes = [];
         const push = (arr) => arr.forEach(b => bytes.push(b));
         const txt = (str) => {
-            const clean = str
-                .replace(/Rp\s/g, 'Rp ')
-                .replace(/[^\x00-\x7E]/g, (c) => {
-                    const map = {
-                        'á': 'a', 'à': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a',
-                        'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
-                        'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
-                        'ó': 'o', 'ò': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o',
-                        'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
-                        'ñ': 'n', 'ç': 'c'
-                    };
-                    return map[c] || '?';
-                });
-            for (let i = 0; i < clean.length; i++) {
-                bytes.push(clean.charCodeAt(i) & 0xFF);
-            }
+            const clean = str.replace(/[^\x00-\x7E]/g, '');
+            for (let i = 0; i < clean.length; i++) bytes.push(clean.charCodeAt(i) & 0xFF);
         };
         const nl = () => bytes.push(LF);
         const line = (str) => { txt(str); nl(); };
         const divider = (char = '-', len = 32) => line(char.repeat(len));
+        const rupiah = (num) => 'Rp ' + Number(num).toLocaleString('id-ID');
 
         const dateFormatted = pickupDate
             ? new Date(pickupDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
-            : pickupDate;
-
-        const rupiah = (num) => 'Rp ' + Number(num).toLocaleString('id-ID');
+            : '-';
 
         // Initialize Printer
         push([ESC, 0x40]);
-        push([ESC, 0x74, 0x00]); // PC437
+        push([ESC, 0x74, 0x00]); 
 
-        // ---- HEADER ----
+        // ---- BARIS ATAS (DIJAGA UTUH Sesuai Aturan) ----
         push([ESC, 0x61, 0x01]); // Center
         push([ESC, 0x45, 0x01]); // Bold ON
-        push([GS, 0x21, 0x11]);    // Double size
+        push([GS, 0x21, 0x11]);    
         line(siteName.toUpperCase());
-        push([GS, 0x21, 0x00]);    // Normal size
-        push([ESC, 0x45, 0x00]); // Bold OFF
+        push([GS, 0x21, 0x00]);    
+        push([ESC, 0x45, 0x00]); 
         line('Sweet & Savoury');
         if (address) {
             let addressLines = wordWrap(address, 32);
@@ -215,18 +157,20 @@
         }
         line('+62-858-1200-6225');
 
-        push([ESC, 0x61, 0x00]); // Left align
+        push([ESC, 0x61, 0x00]); // Left
         divider('=', 32);
 
-        // ---- NOTA METADATA ----
+        // Metadata Atas + Nomor Nota Jika Ada
         const now = new Date();
-        const curDate = now.toLocaleDateString('id-ID', {day:'2-digit', month:'2-digit', year:'2-digit'});
-        line('Jam    : ' + now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
+        if(activeNotaId) {
+            line('Nota   : #' + activeNotaId);
+        }
+        line('Jam    : ' + now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' (' + now.toLocaleDateString('id-ID', {day:'2-digit', month:'2-digit'}) + ')');
         line('Cust   : ' + customerName.toUpperCase());
-        line('Tgl    : ' + dateFormatted);
+        line('Tgl    : ' + dateFormatted + ' (' + pickupTime + ')');
         divider('-', 32);
 
-        // ---- ITEMS ----
+        // List Produk
         let totalPrice = 0;
         Object.keys(cartData).forEach(key => {
             const qty = cartData[key];
@@ -240,7 +184,6 @@
             } else {
                 product = products.find(p => p.id == key);
             }
-
             if (!product) return;
 
             const unitPrice = product.price + boxOptionPrice;
@@ -256,52 +199,67 @@
 
         divider('=', 32);
 
-        // ---- TOTAL TAGIHAN ----
-        push([ESC, 0x61, 0x02]); // Right align
+        // ---- BARIS FINANSIAL BAWAH (PENYEMPURNAAN RATA KIRI-KANAN) ----
+        // 1. Baris TOTAL
+        const totLabel = "TOTAL:";
+        const totVal = rupiah(totalPrice);
         push([ESC, 0x45, 0x01]); // Bold ON
-        line('TOTAL: ' + rupiah(totalPrice));
+        line(totLabel + ' '.repeat(Math.max(0, 32 - totLabel.length - totVal.length)) + totVal);
         push([ESC, 0x45, 0x00]); // Bold OFF
 
-        // Perhitungan Finansial Kembalian / Sisa Piutang
+        // 2. Baris Status Pembayaran
+        const stLabel = "Status :";
+        const stVal = paymentStatus.toUpperCase();
+        line(stLabel + ' '.repeat(Math.max(0, 32 - stLabel.length - stVal.length)) + stVal);
+
+        // 3. Baris DP Lama (Jika Ada)
+        if(previousDp > 0) {
+            const dpLabel = "DP Lama:";
+            const dpVal = rupiah(previousDp);
+            line(dpLabel + ' '.repeat(Math.max(0, 32 - dpLabel.length - dpVal.length)) + dpVal);
+        }
+
+        // 4. Baris Jumlah Bayar Saat Ini
+        const pyLabel = "Bayar  :";
+        const pyVal = rupiah(amountPaid);
+        line(pyLabel + ' '.repeat(Math.max(0, 32 - pyLabel.length - pyVal.length)) + pyVal);
+
+        // Kalkulasi Akhir Logika Pintar
+        let targetLeft = totalPrice - previousDp;
         let debt = 0;
         let change = 0;
+
         if (paymentStatus === "Lunas" || paymentStatus === "Transfer") {
-            if (amountPaid >= totalPrice) change = amountPaid - totalPrice;
-            else debt = totalPrice - amountPaid;
+            if (amountPaid >= targetLeft) change = amountPaid - targetLeft;
+            else debt = targetLeft - amountPaid;
         } else {
-            if (amountPaid < totalPrice) debt = totalPrice - amountPaid;
-            else change = amountPaid - totalPrice;
+            if (amountPaid < targetLeft) debt = targetLeft - amountPaid;
+            else change = amountPaid - targetLeft;
         }
 
-        // ---- FITUR BARU: CETAK METODE PEMBAYARAN ----
-        const statusLine = `Status : ${paymentStatus.toUpperCase()}`;
-        line(' '.repeat(Math.max(0, 32 - statusLine.length)) + statusLine);
-        
-        const payLine = `Bayar  : ${rupiah(amountPaid)}`;
-        line(' '.repeat(Math.max(0, 32 - payLine.length)) + payLine);
-
+        // 5. Baris Kurang / Kembali Rata Kiri-Kanan
         if (debt > 0) {
-            const debtLine = `Kurang : ${rupiah(debt)}`;
-            line(' '.repeat(Math.max(0, 32 - debtLine.length)) + debtLine);
+            const dbLabel = "Kurang :";
+            const dbVal = rupiah(debt);
+            line(dbLabel + ' '.repeat(Math.max(0, 32 - dbLabel.length - dbVal.length)) + dbVal);
         }
         if (change > 0) {
-            const changeLine = `Kembali: ${rupiah(change)}`;
-            line(' '.repeat(Math.max(0, 32 - changeLine.length)) + changeLine);
+            const chLabel = "Kembali:";
+            const chVal = rupiah(change);
+            line(chLabel + ' '.repeat(Math.max(0, 32 - chLabel.length - chVal.length)) + chVal);
         }
 
-        // ---- FOOTER ----
-        push([ESC, 0x61, 0x01]); // Center
+        // ---- FOOTER TETAP UTUH ----
+        push([ESC, 0x61, 0x01]); 
         divider('-', 32);
         line('Terima kasih atas pesanan Anda!');
         line('Silakan hubungi kami jika ada');
         line('pertanyaan lebih lanjut.');
 
-        // Feed & Cut
         push([GS, 0x56, 0x41, 0x03]);
         return new Uint8Array(bytes);
     }
 
-    // ---- Kirim data ke printer via chunk ----
     async function sendToPrinter(data) {
         const CHUNK_SIZE = 200;
         for (let i = 0; i < data.length; i += CHUNK_SIZE) {
@@ -315,7 +273,6 @@
         }
     }
 
-    // ---- MAIN: Cetak Struk ----
     async function printStruk() {
         const customerName = document.getElementById('customer-name')?.value?.trim();
         const pickupDate = document.getElementById('pickup-date')?.value;
@@ -350,7 +307,7 @@
         }
     }
 
-    // ---- Fallback: Cetak via window.print() dengan tambahan Metode Pembayaran ----
+    // FALLBACK CETAK VIA DRIVER WINDOWS/BROWSER DIKONDISIKAN SAMA PERSIS TATA LETAKNYA
     function printStrukFallback(customerName, pickupDate, pickupTime) {
         const cartData = window.appData ? window.appData.cart : {};
         const cartInfoData = window.appData ? window.appData.cartInfo : {};
@@ -360,6 +317,8 @@
 
         const paymentStatus = document.getElementById('payment-status')?.value || 'Lunas';
         const amountPaid = parseFloat(document.getElementById('amount-paid')?.value) || 0;
+        const activeNotaId = window.appData.activeNotaId || null;
+        const previousDp = window.appData.previousDpAmount || 0;
 
         const rupiah = (n) => 'Rp ' + Number(n).toLocaleString('id-ID');
         const dateFormatted = pickupDate
@@ -391,21 +350,25 @@
             itemsHtml += `
                 <tr><td colspan="2"><b>${product.name.toUpperCase()}</b></td></tr>
                 <tr>
-                    <td>${qty} x ${rupiah(unitPrice)}</td>
-                    <td style="text-align:right"><b>${rupiah(itemTotal)}</b></td>
+                    <td>  ${qty} x ${rupiah(unitPrice)}</td>
+                    <td style="text-align:right">${rupiah(itemTotal)}</td>
                 </tr>
             `;
         });
 
+        let targetLeft = totalPrice - previousDp;
         let debt = 0;
         let change = 0;
+
         if (paymentStatus === "Lunas" || paymentStatus === "Transfer") {
-            if (amountPaid >= totalPrice) change = amountPaid - totalPrice;
-            else debt = totalPrice - amountPaid;
+            if (amountPaid >= targetLeft) change = amountPaid - targetLeft;
+            else debt = targetLeft - amountPaid;
         } else {
-            if (amountPaid < totalPrice) debt = totalPrice - amountPaid;
-            else change = amountPaid - totalPrice;
+            if (amountPaid < targetLeft) debt = targetLeft - amountPaid;
+            else change = amountPaid - targetLeft;
         }
+
+        const notaRow = activeNotaId ? `<tr><td>Nota</td><td>: #${activeNotaId}</td></tr>` : '';
 
         const printHtml = `<!DOCTYPE html>
 <html>
@@ -435,6 +398,7 @@
     <div class="divider-solid"></div>
 
     <table>
+        ${notaRow}
         <tr><td>Jam</td><td>: ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} (${now.toLocaleDateString('id-ID', {day:'2-digit', month:'2-digit'})})</td></tr>
         <tr><td>Cust</td><td>: ${customerName.toUpperCase()}</td></tr>
         <tr><td>Tgl</td><td>: ${dateFormatted} (${pickupTime})</td></tr>
@@ -447,9 +411,10 @@
     <table>
         <tr class="total-row"><td>TOTAL</td><td class="right">${rupiah(totalPrice)}</td></tr>
         <tr><td>Status</td><td class="right"><b>${paymentStatus.toUpperCase()}</b></td></tr>
+        ${previousDp > 0 ? `<tr><td>DP Lama</td><td class="right">${rupiah(previousDp)}</td></tr>` : ''}
         <tr><td>Bayar</td><td class="right">${rupiah(amountPaid)}</td></tr>
-        ${debt > 0 ? `<tr><td>Kurang</td><td class="right" style="color:red">${rupiah(debt)}</td></tr>` : ''}
-        ${change > 0 ? `<tr><td>Kembali</td><td class="right">${rupiah(change)}</td></tr>` : ''}
+        ${debt > 0 ? `<tr><td>Kurang</td><td class="right" style="color:red"><b>${rupiah(debt)}</b></td></tr>` : ''}
+        ${change > 0 ? `<tr><td>Kembali</td><td class="right"><b>${rupiah(change)}</b></td></tr>` : ''}
     </table>
 
     <div class="divider-dashed"></div>
@@ -457,10 +422,7 @@
         Terima kasih atas pesanan Anda!<br>Hubungi kami jika ada pertanyaan.
     </div>
     <script>
-        window.onload = function() {
-            window.print();
-            setTimeout(function() { window.close(); }, 500);
-        };
+        window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };
     <\/script>
 </body>
 </html>`;
@@ -482,7 +444,6 @@
         }
     }
 
-    // ---- Expose ke global ----
     window.DjandesPrinter = {
         connect: connectPrinter,
         disconnect: disconnectPrinter,
