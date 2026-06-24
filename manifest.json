@@ -1,0 +1,23 @@
+{
+  "short_name": "Djandes Struk",
+  "name": "Djandes Struk",
+  "icons": [
+    {
+      "src": "/img/gambar.jpg",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/img/gambar.jpg",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/pos",
+  "background_color": "#D97706",
+  "theme_color": "#D97706",
+  "display": "standalone",
+  "orientation": "portrait"
+}
