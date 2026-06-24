@@ -9,29 +9,20 @@
     <link rel="apple-touch-icon" href="/img/favicon.ico">
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
+        /* Gaya status dot printer & internet */
         .indicator-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         .dot-connected { background-color: #10B981; box-shadow: 0 0 8px #10B981; }
         .dot-disconnected { background-color: #EF4444; box-shadow: 0 0 8px #EF4444; }
         
+        /* Simulasi kertas struk thermal 58mm */
         .struk-preview {
             font-family: 'Courier New', Courier, monospace;
             background-color: #fff;
             color: #000;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
             letter-spacing: -0.2px;
-        }
-
-        /* Container khusus penanganan rendering html2canvas agar presisi, tajam, & tidak terpotong */
-        #hidden-image-capture-wrapper {
-            position: absolute;
-            left: -9999px;
-            top: -9999px;
-            width: 380px;
-            background: white;
-            padding: 16px;
         }
     </style>
 </head>
@@ -61,13 +52,14 @@
             📦 Daftar Produk
         </button>
         <button id="tab-struk-btn" class="w-1/2 py-3 text-center text-sm font-bold border-b-2 border-transparent text-gray-500 transition flex justify-center items-center gap-1.5">
-            📋 Struk & Log <span id="cart-badge" class="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full hidden">0</span>
+            📋 Struk & Bayar <span id="cart-badge" class="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full hidden">0</span>
         </button>
     </div>
 
     <main class="max-w-7xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         <section id="section-produk" class="lg:col-span-7 xl:col-span-8 flex flex-col gap-4">
+            
             <div class="bg-white p-4 rounded-xl shadow-xs flex flex-col md:flex-row gap-4 items-center justify-between">
                 <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto flex-grow">
                     <input type="text" id="search-input" placeholder="Cari nama produk..." class="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm">
@@ -77,16 +69,13 @@
                 </div>
                 
                 <div class="flex bg-gray-200 p-1 rounded-lg w-full md:w-auto justify-center">
-                    <button id="mode-menu-btn" class="px-4 py-1.5 rounded-md text-xs font-bold transition bg-white text-amber-600 shadow-xs">Mode Menu</button>
-                    <button id="mode-text-btn" class="px-4 py-1.5 rounded-md text-xs font-bold transition text-gray-600 hover:text-gray-900">Mode Teks</button>
+                    <button id="mode-menu-btn" class="px-4 py-1.5 rounded-md text-xs font-bold transition bg-white text-amber-600 shadow-xs">
+                        Mode Menu
+                    </button>
+                    <button id="mode-text-btn" class="px-4 py-1.5 rounded-md text-xs font-bold transition text-gray-600 hover:text-gray-900">
+                        Mode Teks
+                    </button>
                 </div>
-            </div>
-
-            <div id="pelunasan-notice" class="bg-blue-50 border-l-4 border-blue-500 p-3 rounded-r-xl hidden flex justify-between items-center shadow-xs">
-                <div class="text-xs text-blue-800">
-                    <span class="font-bold">Mode Pelunasan/Lihat Aktif:</span> Memproses Nota <span id="pelunasan-nota-id" class="font-bold">#0</span> (<span id="pelunasan-cust-name"></span>).
-                </div>
-                <button onclick="cancelPelunasanMode()" class="text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded hover:bg-blue-300 font-bold">Kembali / Reset</button>
             </div>
 
             <div id="product-area-container">
@@ -103,153 +92,100 @@
                                 <th class="p-3 text-center w-32">Jumlah</th>
                             </tr>
                         </thead>
-                        <tbody id="text-table-body" class="divide-y divide-gray-100"></tbody>
+                        <tbody id="text-table-body" class="divide-y divide-gray-100">
+                        </tbody>
                     </table>
                 </div>
             </div>
         </section>
 
-        <section id="section-struk" class="hidden lg:flex lg:col-span-5 xl:col-span-4 flex-col gap-4">
+        <section id="section-struk" class="hidden lg:flex lg:col-span-5 xl:col-span-4 flex-col gap-6">
             
-            <div class="flex bg-gray-200 p-1 rounded-xl shadow-xs">
-                <button id="subtab-bayar-btn" class="w-1/2 py-2 text-center text-xs font-bold rounded-lg transition bg-white text-amber-700 shadow-2xs">
-                    📋 Kasir & Struk
-                </button>
-                <button id="subtab-log-btn" class="w-1/2 py-2 text-center text-xs font-bold rounded-lg transition text-gray-600 hover:text-gray-900">
-                    📜 Log Struk System
-                </button>
-            </div>
-
-            <div id="container-subtab-bayar" class="flex flex-col gap-4">
-                <div id="cashier-fields-wrapper" class="flex flex-col gap-4">
-                    <div class="bg-white p-4 rounded-xl shadow-xs flex flex-col gap-3">
-                        <h3 class="font-bold text-gray-700 border-b pb-2 text-sm uppercase tracking-wide">Data Pengambilan</h3>
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">Nama Pemesan</label>
-                            <input type="text" id="customer-name" value="Umum" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-500 mb-1">Tanggal</label>
-                                <input type="date" id="pickup-date" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-500 mb-1">Jam</label>
-                                <input type="time" id="pickup-time" value="12:00" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-white p-4 rounded-xl shadow-xs flex flex-col gap-3">
-                        <h3 class="font-bold text-gray-700 border-b pb-2 text-sm uppercase tracking-wide">Metode Pembayaran</h3>
-                        
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">Status / Jenis Pembayaran</label>
-                            <select id="payment-status" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500">
-                                <option value="Lunas">Lunas</option>
-                                <option value="Transfer">Transfer</option>
-                                <option value="DP">DP (Uang Muka)</option>
-                                <option value="Kurang Bayar">Kurang Bayar</option>
-                            </select>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-500 mb-1">Total Tagihan</label>
-                                <input type="text" id="billing-total" readonly value="Rp 0" class="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-sm font-bold text-gray-700 focus:outline-none">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-500 mb-1">Jumlah Bayar Saat Ini</label>
-                                <input type="number" id="amount-paid" value="0" min="0" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold text-emerald-700">
-                            </div>
-                        </div>
-
-                        <div id="container-previous-dp" class="bg-amber-50 p-2 rounded-md border border-amber-200 hidden text-xs flex justify-between">
-                            <span class="text-amber-800 font-semibold">DP Sebelumnya yang Terbayar:</span>
-                            <span id="label-previous-dp" class="font-bold text-amber-700">Rp 0</span>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-2 pt-1">
-                            <div>
-                                <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Kurang Bayar</label>
-                                <span id="label-debt" class="text-sm font-bold text-red-600 block px-1">Rp 0</span>
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Kembalian</label>
-                                <span id="label-change" class="text-sm font-bold text-blue-600 block px-1">Rp 0</span>
-                            </div>
-                        </div>
-                    </div>
+            <div class="bg-white p-4 rounded-xl shadow-xs flex flex-col gap-3">
+                <h3 class="font-bold text-gray-700 border-b pb-2 text-sm uppercase tracking-wide">Data Pengambilan</h3>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Nama Pemesan</label>
+                    <input type="text" id="customer-name" value="Umum" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                 </div>
-
-                <div class="flex flex-col gap-2">
-                    <h3 class="font-bold text-gray-700 px-1 text-sm">Live Preview Struk (58mm)</h3>
-                    <div class="bg-gray-200 p-4 rounded-xl flex justify-center overflow-x-auto">
-                        <div id="struk-live-view" class="struk-preview w-[54mm] min-h-[80mm] p-3 text-[10px] leading-tight"></div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">Tanggal</label>
+                        <input type="date" id="pickup-date" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                     </div>
-
-                    <div class="grid grid-cols-2 gap-2 mt-2">
-                        <button id="btn-save-db" onclick="saveTransactionToCloud()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-3 rounded-lg text-xs shadow transition flex items-center justify-center gap-1">
-                            💾 Simpan Ke Log
-                        </button>
-                        <button id="btn-save-img" onclick="saveStrukAsImage()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-xs shadow transition flex items-center justify-center gap-1">
-                            🖼️ Simpan Gambar
-                        </button>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">Jam</label>
+                        <input type="time" id="pickup-time" value="12:00" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                     </div>
-
-                    <button id="print-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-md transition flex justify-center items-center gap-2 mt-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                        Cetak Struk Sekarang
-                    </button>
                 </div>
             </div>
 
-            <div id="container-subtab-log" class="hidden flex flex-col gap-3">
-                <div class="bg-white p-3 rounded-xl shadow-xs flex flex-col gap-2">
-                    <input type="text" id="search-log-input" placeholder="Cari Nota / Nama Cust..." class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-amber-500">
-                    <div class="flex gap-2">
-                        <select id="filter-log-status" class="w-full px-2 py-1 border border-gray-300 rounded bg-white text-xs">
-                            <option value="Semua">Semua Status</option>
-                            <option value="Lunas">Lunas</option>
-                            <option value="Transfer">Transfer</option>
-                            <option value="DP">DP (Uang Muka)</option>
-                            <option value="Kurang Bayar">Kurang Bayar</option>
-                        </select>
-                        <button onclick="fetchLogTransactions()" class="bg-gray-100 hover:bg-gray-200 border border-gray-300 px-3 py-1 rounded text-xs font-bold text-gray-700 shrink-0">🔄 Refresh</button>
+            <div class="bg-white p-4 rounded-xl shadow-xs flex flex-col gap-3">
+                <h3 class="font-bold text-gray-700 border-b pb-2 text-sm uppercase tracking-wide">Metode Pembayaran</h3>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Status / Jenis Pembayaran</label>
+                    <select id="payment-status" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        <option value="Lunas">Lunas</option>
+                        <option value="Transfer">Transfer</option>
+                        <option value="DP">DP (Uang Muka)</option>
+                        <option value="Kurang Bayar">Kurang Bayar</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">Total Tagihan</label>
+                        <input type="text" id="billing-total" readonly value="Rp 0" class="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-sm font-bold text-gray-700 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">Jumlah Bayar</label>
+                        <input type="number" id="amount-paid" value="0" min="0" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold text-emerald-700">
                     </div>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-xs max-h-[480px] overflow-y-auto border border-gray-200">
-                    <div id="log-list-container" class="divide-y divide-gray-100">
-                        <div class="text-center text-gray-500 py-8 text-xs">Memuat daftar transaksi...</div>
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Kurang Bayar</label>
+                        <span id="label-debt" class="text-sm font-bold text-red-600 block px-1">Rp 0</span>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Kembalian</label>
+                        <span id="label-change" class="text-sm font-bold text-blue-600 block px-1">Rp 0</span>
                     </div>
                 </div>
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <h3 class="font-bold text-gray-700 px-1 text-sm">Live Preview Struk (58mm)</h3>
+                
+                <div class="bg-gray-200 p-4 rounded-xl flex justify-center overflow-x-auto">
+                    <div id="struk-live-view" class="struk-preview w-[54mm] min-h-[80mm] p-3 text-[10px] leading-tight">
+                    </div>
+                </div>
+
+                <button id="print-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-md transition flex justify-center items-center gap-2 mt-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                    Cetak Struk Sekarang
+                </button>
             </div>
 
         </section>
     </main>
 
     <div id="toast" class="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg hidden max-w-sm text-sm z-50"></div>
-    <div id="hidden-image-capture-wrapper"></div>
 
     <script src="configpos.js"></script>
     <script src="printerpos.js"></script>
 
     <script>
-        // Inisialisasi State Utama POS
+        // Inisialisasi State Aplikasi
         window.appData = {
             siteSettings: window.DEFAULT_DATA?.siteSettings || { title: "DJANDES POS", description: "Sweet & Savoury", phone: "+62-858-1200-6225" },
             products: [],  
             cart: {},      
             cartInfo: {},
             currentMode: "menu",
-            editingPrices: {},
-            
-            // State Tambahan untuk Penanganan Pelunasan Modal DP
-            activeNotaId: null,
-            previousDpAmount: 0,
-            isPelunasanMode: false,
-            isReadOnlyMode: false
+            editingPrices: {}
         };
 
         document.getElementById('pickup-date').value = new Date().toISOString().split('T')[0];
@@ -268,6 +204,7 @@
             setTimeout(() => toast.classList.add('hidden'), 4000);
         };
 
+        // Deteksi Status Internet Secara Real-Time
         function updateOnlineStatus() {
             const badge = document.getElementById('internet-status-badge');
             if (navigator.onLine) {
@@ -276,12 +213,13 @@
             } else {
                 badge.textContent = "Offline Mode";
                 badge.className = "text-[10px] bg-red-600 text-red-100 px-2 py-0.5 rounded-full font-sans font-normal border border-red-400 animate-pulse";
+                window.showNotification('Koneksi internet terputus! Menggunakan basis data lokal.', 'warning');
             }
         }
         window.addEventListener('online', updateOnlineStatus);
         window.addEventListener('offline', updateOnlineStatus);
 
-        // RESPONSIVE TABS (MOBILE)
+        // Navigasi Tab Sistem (Khusus Mobile)
         const tabProdukBtn = document.getElementById('tab-produk-btn');
         const tabStrukBtn = document.getElementById('tab-struk-btn');
         const sectionProduk = document.getElementById('section-produk');
@@ -298,42 +236,20 @@
             tabStrukBtn.className = "w-1/2 py-3 text-center text-sm font-bold border-b-2 border-amber-600 text-amber-600 transition flex justify-center items-center gap-1.5";
             tabProdukBtn.className = "w-1/2 py-3 text-center text-sm font-bold border-b-2 border-transparent text-gray-500 transition";
             sectionStruk.classList.remove('hidden');
-            sectionStruk.className = "flex flex-col gap-4 lg:col-span-5 xl:col-span-4";
+            sectionStruk.className = "flex flex-col gap-6 lg:col-span-5 xl:col-span-4";
             sectionProduk.classList.add('hidden');
         });
 
-        // SUB-TAB INTERNAL PANEL KANAN (KASIR VS LOG)
-        const subtabBayarBtn = document.getElementById('subtab-bayar-btn');
-        const subtabLogBtn = document.getElementById('subtab-log-btn');
-        const containerSubtabBayar = document.getElementById('container-subtab-bayar');
-        const containerSubtabLog = document.getElementById('container-subtab-log');
-
-        subtabBayarBtn.addEventListener('click', () => {
-            subtabBayarBtn.className = "w-1/2 py-2 text-center text-xs font-bold rounded-lg transition bg-white text-amber-700 shadow-2xs";
-            subtabLogBtn.className = "w-1/2 py-2 text-center text-xs font-bold rounded-lg transition text-gray-600 hover:text-gray-900";
-            containerSubtabBayar.classList.remove('hidden');
-            containerSubtabLog.classList.add('hidden');
-        });
-
-        subtabLogBtn.addEventListener('click', () => {
-            subtabLogBtn.className = "w-1/2 py-2 text-center text-xs font-bold rounded-lg transition bg-white text-amber-700 shadow-2xs";
-            subtabBayarBtn.className = "w-1/2 py-2 text-center text-xs font-bold rounded-lg transition text-gray-600 hover:text-gray-900";
-            containerSubtabLog.classList.remove('hidden');
-            containerSubtabBayar.classList.add('hidden');
-            fetchLogTransactions();
-        });
-
-        // AMBIL DATA PRODUK & SETTINGS SUPABASE
+        // AMBIL DATA PRODUK DARI CLOUD & SINKRONKAN KE PENYIMPANAN LOCALSTORAGE BROWSER
         async function loadSupabaseProducts() {
             updateOnlineStatus();
-            
-            // Mengambil data dari cache produk lokal jika ada agar selalu offline-ready
-            const cachedProducts = localStorage.getItem('cached_products');
-            const cachedSettings = localStorage.getItem('cached_settings');
-            if (cachedProducts) window.appData.products = JSON.parse(cachedProducts);
-            if (cachedSettings) window.appData.siteSettings = JSON.parse(cachedSettings);
 
-            if (!navigator.onLine || !window.CONFIG || !window.CONFIG.SUPABASE_URL || !window.CONFIG.SUPABASE_KEY) {
+            if (!navigator.onLine) {
+                fallbackToLocalData();
+                return;
+            }
+
+            if (!window.CONFIG || !window.CONFIG.SUPABASE_URL || !window.CONFIG.SUPABASE_KEY) {
                 fallbackToLocalData();
                 return;
             }
@@ -356,6 +272,7 @@
 
                 if (data && data.length > 0) {
                     window.appData.products = data;
+                    // SINKRONISASI UTAMA: Cadangkan data cloud terbaru ke local storage browser
                     localStorage.setItem('cached_products', JSON.stringify(data));
                 } else {
                     fallbackToLocalData();
@@ -369,29 +286,56 @@
             renderViews();
         }
 
+        // PENANGANAN OFFLINE (MEMBACA DATA SINKRONISASI TERAKHIR)
         function fallbackToLocalData() {
-            if (!window.appData.products || window.appData.products.length === 0) {
-                if (window.DEFAULT_DATA?.products) {
-                    window.appData.products = window.DEFAULT_DATA.products;
-                }
+            const cachedProducts = localStorage.getItem('cached_products');
+            const cachedSettings = localStorage.getItem('cached_settings');
+
+            if (cachedProducts) {
+                // Gunakan data sinkronisasi terakhir dari cloud (Sangat Akurat)
+                window.appData.products = JSON.parse(cachedProducts);
+                window.showNotification('Mode Offline: Menggunakan data terbaru hasil sinkronisasi.', 'warning');
+            } else if (window.DEFAULT_DATA?.products) {
+                // Jika cache kosong, gunakan data cadangan dari config.js
+                window.appData.products = window.DEFAULT_DATA.products;
+                window.showNotification('Offline: Memuat data bawaan config.js.', 'warning');
             }
-            if (!window.appData.siteSettings && window.DEFAULT_DATA?.siteSettings) {
+            
+            if (cachedSettings) {
+                window.appData.siteSettings = JSON.parse(cachedSettings);
+            } else if (window.DEFAULT_DATA?.siteSettings) {
                 window.appData.siteSettings = window.DEFAULT_DATA.siteSettings;
             }
+
             renderCategories();
             renderViews();
         }
 
         window.toggleEditPrice = function(productId, enable) {
-            if (window.appData.isReadOnlyMode) return;
-            if (enable) window.appData.editingPrices[productId] = true;
-            else delete window.appData.editingPrices[productId];
-            renderViews();
+            if (enable) {
+                window.appData.editingPrices[productId] = true;
+            } else {
+                delete window.appData.editingPrices[productId];
+            }
+            const searchKeyword = document.getElementById('search-input').value.toLowerCase();
+            const selectedCategory = document.getElementById('category-filter').value;
+            const filteredProducts = window.appData.products.filter(p => {
+                const nameMatch = p.name ? p.name.toLowerCase().includes(searchKeyword) : false;
+                const categoryMatch = (selectedCategory === 'Semua' || p.category === selectedCategory);
+                return nameMatch && categoryMatch;
+            });
+            
+            if (window.appData.currentMode === "menu") {
+                renderGridMode(filteredProducts);
+            } else {
+                renderTableMode(filteredProducts);
+            }
         };
 
         window.saveProductPrice = async function(productId, inputElementId) {
             const newPrice = document.getElementById(inputElementId).value;
             const parsedPrice = parseFloat(newPrice);
+            
             if (isNaN(parsedPrice) || parsedPrice < 0) {
                 window.showNotification('Harga tidak valid!', 'error');
                 return;
@@ -400,6 +344,7 @@
             const productIndex = window.appData.products.findIndex(p => p.id == productId);
             if (productIndex !== -1) {
                 window.appData.products[productIndex].price = parsedPrice;
+                // Selalu perbarui cache lokal setiap kali mengubah harga produk
                 localStorage.setItem('cached_products', JSON.stringify(window.appData.products));
             }
 
@@ -408,11 +353,19 @@
 
             if (navigator.onLine && window.supabaseClient) {
                 try {
-                    await window.supabaseClient.from('products').update({ price: parsedPrice }).eq('id', productId);
-                    window.showNotification('Harga produk diperbarui!', 'success');
+                    const { error } = await window.supabaseClient
+                        .from('products')
+                        .update({ price: parsedPrice })
+                        .eq('id', productId);
+
+                    if (error) throw error;
+                    window.showNotification('Harga produk berhasil diperbarui di database!', 'success');
                 } catch (e) {
-                    window.showNotification('Tersimpan lokal, gagal upload ke cloud.', 'warning');
+                    console.error(e);
+                    window.showNotification('Gagal menyimpan ke cloud, tersimpan secara lokal.', 'warning');
                 }
+            } else {
+                window.showNotification('Mode offline: Harga diperbarui di browser sementara.', 'warning');
             }
         };
 
@@ -442,6 +395,7 @@
                 document.getElementById('product-text-table').classList.remove('hidden');
                 renderTableMode(filteredProducts);
             }
+            
             calculateFinances();
         }
 
@@ -460,8 +414,6 @@
                 if (imageUrl && !imageUrl.startsWith('http')) imageUrl = window.CONFIG.IMAGEKIT_URL_ENDPOINT + imageUrl;
                 else if (!imageUrl) imageUrl = window.CONFIG.IMAGEKIT_URL_ENDPOINT + window.CONFIG.DEFAULT_IMAGE;
                 
-                const isLocked = window.appData.isPelunasanMode || window.appData.isReadOnlyMode;
-
                 return `
                     <div class="bg-white rounded-xl shadow-2xs overflow-hidden flex flex-col border ${qty > 0 ? 'border-amber-500 ring-1 ring-amber-500' : 'border-gray-200'} ${isHabis ? 'opacity-60' : ''}">
                         <img src="${imageUrl}" alt="${p.name}" class="h-28 w-full object-cover bg-gray-200" onerror="this.src='https://placehold.co/150?text=No+Image'">
@@ -469,17 +421,23 @@
                             <div>
                                 <span class="text-[10px] uppercase font-bold text-amber-600 tracking-wider">${p.category || 'Umum'}</span>
                                 <h4 class="font-bold text-sm text-gray-800 line-clamp-1">${p.name}</h4>
+                                
                                 <div class="mt-1 flex items-center justify-between gap-1 bg-gray-50 p-1 rounded-md border border-gray-100">
                                     <div class="flex items-center gap-0.5 text-emerald-600 text-xs font-semibold overflow-hidden">
                                         <span>Rp</span>
-                                        ${isEditing ? `<input type="number" id="input-price-grid-${p.id}" value="${p.price}" class="w-16 font-bold focus:outline-none bg-white border border-amber-400 rounded px-1 text-gray-800">` : `<span class="font-bold px-1">${Number(p.price).toLocaleString('id-ID')}</span>`}
+                                        ${isEditing ? `
+                                            <input type="number" id="input-price-grid-${p.id}" value="${p.price}" 
+                                                class="w-16 font-bold focus:outline-none bg-white border border-amber-400 rounded px-1 text-gray-800">
+                                        ` : `
+                                            <span class="font-bold px-1">${Number(p.price).toLocaleString('id-ID')}</span>
+                                        `}
                                     </div>
                                     <div class="flex gap-1 shrink-0">
                                         ${isEditing ? `
-                                            <button onclick="saveProductPrice(${p.id}, 'input-price-grid-${p.id}')" class="text-xs bg-emerald-500 text-white rounded p-1">✅</button>
-                                            <button onclick="toggleEditPrice(${p.id}, false)" class="text-xs bg-gray-300 text-gray-700 rounded p-1">❌</button>
+                                            <button onclick="saveProductPrice(${p.id}, 'input-price-grid-${p.id}')" title="Simpan" class="text-xs bg-emerald-500 text-white rounded p-1 hover:bg-emerald-600 transition">✅</button>
+                                            <button onclick="toggleEditPrice(${p.id}, false)" title="Batal" class="text-xs bg-gray-300 text-gray-700 rounded p-1 hover:bg-gray-400 transition">❌</button>
                                         ` : `
-                                            <button onclick="${isLocked ? 'return' : `toggleEditPrice(${p.id}, true)`}" class="text-xs opacity-70 hover:opacity-100 bg-gray-200 text-gray-700 rounded px-1.5 py-0.5 ${isLocked ? 'opacity-30 cursor-not-allowed' : ''}">✏️</button>
+                                            <button onclick="toggleEditPrice(${p.id}, true)" title="Ubah Harga" class="text-xs opacity-70 hover:opacity-100 bg-gray-200 text-gray-700 rounded px-1.5 py-0.5 transition">✏️</button>
                                         `}
                                     </div>
                                 </div>
@@ -488,10 +446,10 @@
                                 `<span class="text-center text-xs bg-red-100 text-red-600 font-bold py-1 rounded mt-1">Habis</span>` :
                                 `<div class="flex items-center justify-between mt-1">
                                     ${qty > 0 ? `
-                                        <button onclick="${isLocked ? 'return' : `updateCart(${p.id}, -1)`}" class="bg-gray-200 text-gray-880 font-bold w-7 h-7 rounded-lg text-sm ${isLocked ? 'opacity-30 cursor-not-allowed' : ''}">-</button>
+                                        <button onclick="updateCart(${p.id}, -1)" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold w-7 h-7 rounded-lg text-sm">-</button>
                                         <span class="font-bold text-sm">${qty}</span>
                                     ` : ''}
-                                    <button onclick="${isLocked ? 'return' : `updateCart(${p.id}, 1)`}" class="bg-amber-500 text-white font-bold ${qty > 0 ? 'w-7 h-7' : 'w-full py-1 text-xs'} rounded-lg transition ${isLocked ? 'opacity-30 cursor-not-allowed' : ''}">
+                                    <button onclick="updateCart(${p.id}, 1)" class="bg-amber-500 hover:bg-amber-600 text-white font-bold ${qty > 0 ? 'w-7 h-7' : 'w-full py-1 text-xs'} rounded-lg transition">
                                         ${qty > 0 ? '+' : 'Tambah'}
                                     </button>
                                 </div>`
@@ -513,7 +471,6 @@
                 const qty = window.appData.cart[p.id] || 0;
                 const isHabis = p.status_stok === 'habis';
                 const isEditing = window.appData.editingPrices[p.id];
-                const isLocked = window.appData.isPelunasanMode || window.appData.isReadOnlyMode;
 
                 return `
                     <tr class="${qty > 0 ? 'bg-amber-50/50 font-medium' : ''} ${isHabis ? 'opacity-50' : ''}">
@@ -524,13 +481,18 @@
                         <td class="p-2 w-28 text-right whitespace-nowrap">
                             <div class="flex items-center justify-end gap-0.5 bg-gray-50 px-1 py-0.5 rounded border border-gray-100">
                                 <span class="text-xs text-emerald-600 font-medium shrink-0">Rp</span>
-                                ${isEditing ? `<input type="number" id="input-price-table-${p.id}" value="${p.price}" class="w-14 text-right text-xs bg-white border border-amber-400 rounded px-0.5 text-gray-800 focus:outline-none">` : `<span class="text-xs text-emerald-600 font-bold px-0.5">${Number(p.price).toLocaleString('id-ID')}</span>`}
+                                ${isEditing ? `
+                                    <input type="number" id="input-price-table-${p.id}" value="${p.price}" 
+                                        class="w-14 text-right text-xs text-emerald-600 font-bold bg-white border border-amber-400 rounded px-0.5 text-gray-800 focus:outline-none">
+                                ` : `
+                                    <span class="text-xs text-emerald-600 font-bold px-0.5">${Number(p.price).toLocaleString('id-ID')}</span>
+                                `}
                                 <div class="flex gap-0.5 shrink-0 ml-0.5">
                                     ${isEditing ? `
-                                        <button onclick="saveProductPrice(${p.id}, 'input-price-table-${p.id}')" class="text-[10px] bg-emerald-500 text-white p-0.5">✅</button>
-                                        <button onclick="toggleEditPrice(${p.id}, false)" class="text-[10px] bg-gray-300 text-gray-700 p-0.5">❌</button>
+                                        <button onclick="saveProductPrice(${p.id}, 'input-price-table-${p.id}')" title="Simpan" class="text-[10px] bg-emerald-500 text-white rounded p-0.5 hover:bg-emerald-600">✅</button>
+                                        <button onclick="toggleEditPrice(${p.id}, false)" title="Batal" class="text-[10px] bg-gray-300 text-gray-700 rounded p-0.5 hover:bg-gray-400">❌</button>
                                     ` : `
-                                        <button onclick="${isLocked ? 'return' : `toggleEditPrice(${p.id}, true)`}" class="text-[10px] opacity-70 bg-gray-200 text-gray-600 px-1 py-0.5 ${isLocked ? 'opacity-30 cursor-not-allowed' : ''}">✏️</button>
+                                        <button onclick="toggleEditPrice(${p.id}, true)" title="Ubah" class="text-[10px] opacity-70 hover:opacity-100 bg-gray-200 text-gray-600 rounded px-1 py-0.5 transition">✏️</button>
                                     `}
                                 </div>
                             </div>
@@ -539,9 +501,9 @@
                             ${isHabis ? 
                                 `<span class="text-xs text-red-500 font-semibold">Habis</span>` :
                                 `<div class="flex items-center justify-center gap-1.5">
-                                    <button onclick="${isLocked ? 'return' : `updateCart(${p.id}, -1)`}" class="w-6 h-6 flex items-center justify-center bg-gray-100 border border-gray-300 rounded text-xs font-bold ${isLocked ? 'opacity-30 cursor-not-allowed' : ''}">-</button>
-                                    <span class="w-4 text-xs font-bold text-center">${qty}</span>
-                                    <button onclick="${isLocked ? 'return' : `updateCart(${p.id}, 1)`}" class="w-6 h-6 flex items-center justify-center bg-amber-500 rounded text-xs font-bold text-white ${isLocked ? 'opacity-30 cursor-not-allowed' : ''}">+</button>
+                                    <button onclick="updateCart(${p.id}, -1)" class="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded text-xs font-bold text-gray-700 select-none">-</button>
+                                    <span class="w-4 text-xs font-bold text-center inline-block">${qty}</span>
+                                    <button onclick="updateCart(${p.id}, 1)" class="w-6 h-6 flex items-center justify-center bg-amber-500 hover:bg-amber-600 rounded text-xs font-bold text-white select-none">+</button>
                                 </div>`
                             }
                         </td>
@@ -551,7 +513,6 @@
         }
 
         window.updateCart = function(productId, change) {
-            if (window.appData.isPelunasanMode || window.appData.isReadOnlyMode) return;
             const product = window.appData.products.find(p => p.id == productId);
             if (!product) return;
 
@@ -567,12 +528,16 @@
                     window.showNotification(`Minimal order: ${product.minimal_order}`, 'warning');
                 }
                 window.appData.cart[productId] = newQty;
-                window.appData.cartInfo[productId] = { productId: product.id, boxOptionName: product.opsi_produk_aktif ? "Default Box" : "", boxOptionPrice: 0, components: [] };
+                window.appData.cartInfo[productId] = {
+                    productId: product.id,
+                    boxOptionName: product.opsi_produk_aktif ? "Default Box" : "",
+                    boxOptionPrice: 0,
+                    components: []
+                };
             }
             renderViews();
         };
 
-        // INTEGRASI LOGIKA FINANSIAL PINTAR
         function calculateFinances() {
             let total = 0;
             let totalQty = 0;
@@ -594,35 +559,26 @@
             document.getElementById('billing-total').value = 'Rp ' + total.toLocaleString('id-ID');
 
             const paidInput = document.getElementById('amount-paid');
-            let amountPaid = parseFloat(paidInput.value) || 0;
-            let paymentStatus = document.getElementById('payment-status').value;
-
-            // Pengisian nilai bayar otomatis untuk mempermudah kasir
-            if ((paymentStatus === 'Lunas' || paymentStatus === 'Transfer') && !window.appData.isReadOnlyMode && !window.appData.isPelunasanMode && totalQty > 0 && amountPaid === 0) {
-                paidInput.value = total;
-                amountPaid = total;
-            }
-
-            let previousDp = window.appData.previousDpAmount;
-            let targetBillingLeft = total - previousDp;
+            const amountPaid = parseFloat(paidInput.value) || 0;
+            const paymentStatus = document.getElementById('payment-status').value;
 
             let debt = 0;
             let change = 0;
 
             if (paymentStatus === "Lunas" || paymentStatus === "Transfer") {
-                if (amountPaid >= targetBillingLeft) {
-                    change = amountPaid - targetBillingLeft;
+                if (amountPaid >= total) {
+                    change = amountPaid - total;
                     debt = 0;
                 } else {
-                    debt = targetBillingLeft - amountPaid;
+                    debt = total - amountPaid;
                     change = 0;
                 }
-            } else if (paymentStatus === "DP" || paymentStatus === "Kurang Bayar") {
-                if (amountPaid < targetBillingLeft) {
-                    debt = targetBillingLeft - amountPaid;
+            } else { 
+                if (amountPaid < total) {
+                    debt = total - amountPaid;
                     change = 0;
                 } else {
-                    change = amountPaid - targetBillingLeft;
+                    change = amountPaid - total;
                     debt = 0;
                 }
             }
@@ -630,18 +586,16 @@
             document.getElementById('label-debt').textContent = 'Rp ' + debt.toLocaleString('id-ID');
             document.getElementById('label-change').textContent = 'Rp ' + change.toLocaleString('id-ID');
 
-            renderLiveStruk(total, paymentStatus, amountPaid, debt, change, previousDp);
+            renderLiveStruk(total, paymentStatus, amountPaid, debt, change);
         }
 
-        // RENDER LIVE VIEW STRUK 58MM
-        function renderLiveStruk(total, status, paid, debt, change, previousDp) {
+        function renderLiveStruk(total, status, paid, debt, change) {
             const name = document.getElementById('customer-name').value || 'Umum';
             const dateStr = document.getElementById('pickup-date').value;
-            const pickupTime = document.getElementById('pickup-time').value || '12:00';
             
             const formattedDate = dateStr ? new Date(dateStr).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
             const rupiah = (n) => 'Rp ' + Number(n).toLocaleString('id-ID');
-            const phoneStr = window.appData.siteSettings?.phone || "+62-858-1200-6225"; 
+            const phoneStr = "+62-858-1200-6225"; 
 
             const now = new Date();
             const curTime = now.toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'});
@@ -667,27 +621,14 @@
                     <span>Status :</span>
                     <span class="font-bold">${status.toUpperCase()}</span>
                 </div>
-            `;
-
-            if (previousDp > 0) {
-                paymentDetailsHtml += `
-                    <div class="flex justify-between text-[9px] text-amber-700">
-                        <span>DP Lama :</span>
-                        <span>${rupiah(previousDp)}</span>
-                    </div>
-                `;
-            }
-
-            paymentDetailsHtml += `
                 <div class="flex justify-between text-[9px]">
                     <span>Bayar  :</span>
                     <span>${rupiah(paid)}</span>
                 </div>
             `;
-
             if (debt > 0) {
                 paymentDetailsHtml += `
-                    <div class="flex justify-between text-[9px] text-red-700 font-bold">
+                    <div class="flex justify-between text-[9px] text-red-700">
                         <span>Kurang :</span>
                         <span>${rupiah(debt)}</span>
                     </div>
@@ -695,14 +636,12 @@
             }
             if (change > 0) {
                 paymentDetailsHtml += `
-                    <div class="flex justify-between text-[9px] text-blue-700 font-bold">
+                    <div class="flex justify-between text-[9px]">
                         <span>Kembali:</span>
                         <span>${rupiah(change)}</span>
                     </div>
                 `;
             }
-
-            const notaLabel = window.appData.activeNotaId ? `Nota   : #${window.appData.activeNotaId}<br>` : 'Nota   : [Baru]<br>';
 
             document.getElementById('struk-live-view').innerHTML = `
                 <div class="text-center font-bold text-xs">${(window.appData.siteSettings?.title || 'DJANDES POS').toUpperCase()}</div>
@@ -713,11 +652,14 @@
                 <div class="border-b border-black border-solid my-1"></div>
                 
                 <div class="flex flex-col gap-0.5 text-[9px] font-mono">
-                    <div class="leading-tight">
-                        ${notaLabel}
-                        Jam    : ${curTime} (${now.toLocaleDateString('id-ID', {day:'2-digit', month:'2-digit'})})<br>
-                        Cust   : ${name.toUpperCase()}<br>
-                        Tgl    : ${formattedDate} (${pickupTime})
+                    <div class="flex justify-between">
+                        <span>Jam  : ${curTime}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Cust: ${name.toUpperCase()}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Tgl  : ${formattedDate}</span>
                     </div>
                 </div>
                 
@@ -745,320 +687,7 @@
             `;
         }
 
-        // GENERATE NOMOR NOTA UNIK OFFLINE-READY (Waktu + Acak)
-        function generateOfflineNotaId() {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            const hrs = String(now.getHours()).padStart(2, '0');
-            const mins = String(now.getMinutes()).padStart(2, '0');
-            const secs = String(now.getSeconds()).padStart(2, '0');
-            const random = Math.floor(100 + Math.random() * 900);
-            return `INV-${year}${month}${day}-${hrs}${mins}${secs}-${random}`;
-        }
-
-        // SIMPAN DATA TRANSAKSI KE CACHE LOKAL BROWSER (LOG BACKUP)
-        function saveToLocalStoreLog(payload) {
-            let localLogs = JSON.parse(localStorage.getItem('offline_transactions_log')) || [];
-            const idx = localLogs.findIndex(t => t.id === payload.id);
-            if (idx > -1) {
-                localLogs[idx] = payload;
-            } else {
-                localLogs.push(payload);
-            }
-            localStorage.setItem('offline_transactions_log', JSON.stringify(localLogs));
-        }
-
-        // SISTEM SIMPAN / UPDATE TRANSAKSI KE LOG CLOUD & LOKAL
-        async function saveTransactionToCloud() {
-            const cartData = window.appData.cart;
-            const hasItems = Object.values(cartData).some(qty => qty > 0);
-            if (!hasItems) {
-                window.showNotification('Keranjang belanja kosong!', 'warning');
-                return false;
-            }
-
-            // Jika nota baru, buat nomor nota lokal otomatis sebelum tersimpan
-            if (!window.appData.activeNotaId) {
-                window.appData.activeNotaId = generateOfflineNotaId();
-            }
-
-            const customerName = document.getElementById('customer-name').value.trim();
-            const pickupDate = document.getElementById('pickup-date').value;
-            const pickupTime = document.getElementById('pickup-time').value;
-            const paymentStatus = document.getElementById('payment-status').value;
-            const amountPaid = parseFloat(document.getElementById('amount-paid').value) || 0;
-
-            let totalBilling = 0;
-            Object.keys(cartData).forEach(id => {
-                const product = window.appData.products.find(p => p.id == id);
-                if (product) totalBilling += product.price * cartData[id];
-            });
-
-            let currentLeft = totalBilling - window.appData.previousDpAmount;
-            let debt = 0;
-            let change = 0;
-
-            if (paymentStatus === "Lunas" || paymentStatus === "Transfer") {
-                if (amountPaid >= currentLeft) change = amountPaid - currentLeft;
-                else debt = currentLeft - amountPaid;
-            } else {
-                if (amountPaid < currentLeft) debt = currentLeft - amountPaid;
-                else change = amountPaid - currentLeft;
-            }
-
-            const payload = {
-                id: window.appData.activeNotaId,
-                customer_name: customerName,
-                pickup_date: pickupDate || null,
-                pickup_time: pickupTime || null,
-                payment_status: paymentStatus,
-                total_billing: totalBilling,
-                previous_dp: window.appData.previousDpAmount,
-                amount_paid: amountPaid,
-                debt: debt,
-                change: change,
-                items: cartData,
-                created_at: new Date().toISOString()
-            };
-
-            // Simpan ke log lokal browser
-            saveToLocalStoreLog(payload);
-
-            // Jika online, coba simpan/update ke Supabase
-            if (navigator.onLine && window.supabaseClient) {
-                try {
-                    const { error } = await window.supabaseClient
-                        .from('transactions')
-                        .upsert(payload, { onConflict: 'id' });
-
-                    if (error) throw error;
-                    window.showNotification(`✓ Transaksi Berhasil Sinkron Cloud! #${window.appData.activeNotaId}`, 'success');
-                } catch (err) {
-                    console.error(err);
-                    window.showNotification('Tersimpan di Log Lokal browser (Cloud Offline).', 'warning');
-                }
-            } else {
-                window.showNotification('Offline: Tersimpan di Log Lokal.', 'warning');
-            }
-
-            calculateFinances();
-            return true;
-        }
-
-        // AMBIL LOG TRANSAKSI (Gabungan Lokal & Cloud)
-        async function fetchLogTransactions() {
-            const searchVal = document.getElementById('search-log-input').value.toLowerCase();
-            const statusFilter = document.getElementById('filter-log-status').value;
-            const container = document.getElementById('log-list-container');
-
-            // Ambil data log lokal
-            let mergedData = JSON.parse(localStorage.getItem('offline_transactions_log')) || [];
-
-            if (navigator.onLine && window.supabaseClient) {
-                try {
-                    let { data, error } = await window.supabaseClient.from('transactions').select('*').order('created_at', { ascending: false }).limit(60);
-                    if (!error && data) {
-                        // Gabungkan & timpa log cloud ke lokal jika ID sama agar sinkron
-                        data.forEach(cloudItem => {
-                            const localIdx = mergedData.findIndex(l => l.id == cloudItem.id);
-                            if (localIdx > -1) mergedData[localIdx] = cloudItem;
-                            else mergedData.push(cloudItem);
-                        });
-                        localStorage.setItem('offline_transactions_log', JSON.stringify(mergedData));
-                    }
-                } catch (err) {
-                    console.error("Gagal menarik data log cloud:", err);
-                }
-            }
-
-            // Urutkan berdasarkan tanggal terbaru
-            mergedData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-            const filtered = mergedData.filter(t => {
-                const matchName = t.customer_name.toLowerCase().includes(searchVal) || String(t.id).toLowerCase().includes(searchVal);
-                const matchStatus = (statusFilter === 'Semua' || t.payment_status === statusFilter);
-                return matchName && matchStatus;
-            });
-
-            if (filtered.length === 0) {
-                container.innerHTML = `<div class="text-center text-gray-400 py-6 text-xs">Tidak ada riwayat transaksi ditemukan.</div>`;
-                return;
-            }
-
-            container.innerHTML = filtered.map(t => {
-                const tDate = t.created_at ? new Date(t.created_at).toLocaleDateString('id-ID', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'}) : '-';
-                
-                return `
-                    <div class="p-2.5 flex flex-col gap-1 text-xs">
-                        <div class="flex justify-between items-center">
-                            <span class="font-bold text-gray-800 truncate max-w-[180px]">#${t.id} - ${t.customer_name.toUpperCase()}</span>
-                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${t.payment_status==='Lunas'||t.payment_status==='Transfer'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}">${t.payment_status}</span>
-                        </div>
-                        <div class="flex justify-between text-gray-500 text-[11px]">
-                            <span>Tagihan: Rp ${Number(t.total_billing).toLocaleString('id-ID')}</span>
-                            <span class="text-red-600 font-semibold">Sisa: Rp ${Number(t.debt).toLocaleString('id-ID')}</span>
-                        </div>
-                        <div class="flex justify-between items-center text-[10px] text-gray-400 mt-0.5">
-                            <span>${tDate}</span>
-                            <div class="flex gap-1.5">
-                                <button onclick='activatePelunasanMode(${JSON.stringify(t)})' class='bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-2xs transition shrink-0'>
-                                    Buka Nota
-                                </button>
-                                <button onclick="deleteLogTransaction('${t.id}')" class="bg-red-100 text-red-600 hover:bg-red-200 p-1 rounded font-bold text-[10px]" title="Hapus Log">
-                                    🗑️
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // HAPUS LOG TRANSAKSI (Lokal & Cloud)
-        async function deleteLogTransaction(id) {
-            if (!confirm(`Apakah Anda yakin memiliki hak akses untuk menghapus riwayat Nota #${id}?`)) return;
-
-            // Hapus dari penyimpanan lokal
-            let localLogs = JSON.parse(localStorage.getItem('offline_transactions_log')) || [];
-            localLogs = localLogs.filter(t => t.id !== id);
-            localStorage.setItem('offline_transactions_log', JSON.stringify(localLogs));
-
-            // Jika online, hapus dari cloud
-            if (navigator.onLine && window.supabaseClient) {
-                try {
-                    await window.supabaseClient.from('transactions').delete().eq('id', id);
-                    window.showNotification(`Nota #${id} dihapus dari cloud.`, 'success');
-                } catch (err) {
-                    console.error(err);
-                }
-            }
-
-            if (window.appData.activeNotaId === id) cancelPelunasanMode();
-            fetchLogTransactions();
-        }
-
-        // AKTIFKAN MODE PELUNASAN / BUKA NOTA (Dengan Proteksi Status Lunas)
-        window.activatePelunasanMode = function(trx) {
-            window.appData.activeNotaId = trx.id;
-            window.appData.cart = trx.items || {};
-            
-            document.getElementById('customer-name').value = trx.customer_name;
-            if(trx.pickup_date) document.getElementById('pickup-date').value = trx.pickup_date;
-            if(trx.pickup_time) document.getElementById('pickup-time').value = trx.pickup_time.substring(0,5);
-
-            document.getElementById('pelunasan-nota-id').textContent = trx.id;
-            document.getElementById('pelunasan-cust-name').textContent = trx.customer_name.toUpperCase();
-            document.getElementById('pelunasan-notice').classList.remove('hidden');
-
-            const wrapper = document.getElementById('cashier-fields-wrapper');
-
-            // ATURAN PROTEKSI TRANSAKSI LUNAS / TRANSFER (READ ONLY)
-            if (trx.payment_status === 'Lunas' || trx.payment_status === 'Transfer') {
-                window.appData.isPelunasanMode = false;
-                window.appData.isReadOnlyMode = true;
-                window.appData.previousDpAmount = 0;
-
-                document.getElementById('payment-status').value = trx.payment_status;
-                document.getElementById('amount-paid').value = trx.amount_paid;
-
-                // Kunci seluruh kolom input agar tidak bisa dimanipulasi
-                wrapper.querySelectorAll('input, select').forEach(el => el.disabled = true);
-                document.getElementById('btn-save-db').disabled = true;
-                document.getElementById('btn-save-db').classList.add('opacity-40', 'cursor-not-allowed');
-
-                window.showNotification(`Nota #${trx.id} LUNAS (Kunci Aktif). Hanya untuk print/simpan gambar.`, 'info');
-            } else {
-                // MASUK MODE EDIT / PELUNASAN DP
-                window.appData.isPelunasanMode = true;
-                window.appData.isReadOnlyMode = false;
-                window.appData.previousDpAmount = Number(trx.previous_dp) + Number(trx.amount_paid);
-
-                document.getElementById('payment-status').value = 'Lunas';
-                document.getElementById('amount-paid').value = trx.debt;
-
-                // Lepas kunci dan aktifkan penyesuaian bayar sisa piutang
-                wrapper.querySelectorAll('input, select').forEach(el => el.disabled = false);
-                document.getElementById('btn-save-db').disabled = false;
-                document.getElementById('btn-save-db').classList.remove('opacity-40', 'cursor-not-allowed');
-
-                document.getElementById('container-previous-dp').classList.remove('hidden');
-                document.getElementById('label-previous-dp').textContent = 'Rp ' + window.appData.previousDpAmount.toLocaleString('id-ID');
-                
-                window.showNotification(`Mengolah pelunasan sisa nota #${trx.id}`, 'info');
-            }
-
-            subtabBayarBtn.click();
-            renderViews();
-        };
-
-        window.cancelPelunasanMode = function() {
-            window.appData.isPelunasanMode = false;
-            window.appData.isReadOnlyMode = false;
-            window.appData.activeNotaId = null;
-            window.appData.previousDpAmount = 0;
-            window.appData.cart = {};
-            window.appData.cartInfo = {};
-            
-            document.getElementById('customer-name').value = "Umum";
-            document.getElementById('amount-paid').value = "0";
-            document.getElementById('payment-status').value = "Lunas";
-            document.getElementById('pelunasan-notice').classList.add('hidden');
-            document.getElementById('container-previous-dp').classList.add('hidden');
-
-            const wrapper = document.getElementById('cashier-fields-wrapper');
-            wrapper.querySelectorAll('input, select').forEach(el => el.disabled = false);
-            document.getElementById('btn-save-db').disabled = false;
-            document.getElementById('btn-save-db').classList.remove('opacity-40', 'cursor-not-allowed');
-
-            renderViews();
-        };
-
-        // PERBAIKAN TOTAL ELEMEN EKSPOR GAMBAR STRUK (html2canvas Precision Rendering)
-        window.saveStrukAsImage = function() {
-            const liveView = document.getElementById('struk-live-view');
-            const hasItems = Object.keys(window.appData.cart).length > 0;
-            if (!hasItems) {
-                window.showNotification('Keranjang belanja kosong!', 'warning');
-                return;
-            }
-
-            // Auto log simpan jika belum ada nota id terbuat
-            if(!window.appData.activeNotaId) {
-                saveTransactionToCloud();
-            }
-
-            const customerName = document.getElementById('customer-name').value.trim() || 'Umum';
-            const captureContainer = document.getElementById('hidden-image-capture-wrapper');
-            
-            window.showNotification('Memproses konversi ke gambar...', 'info');
-
-            // Salin konten html ke wadah tersembunyi berlatar belakang solid berukuran pixel tetap (380px)
-            captureContainer.innerHTML = liveView.innerHTML;
-            captureContainer.className = "struk-preview text-black text-[11px] leading-snug p-5";
-
-            // Eksekusi html2canvas dengan konfigurasi skala tinggi (HD Resolution)
-            html2canvas(captureContainer, {
-                backgroundColor: "#ffffff",
-                scale: 2.5,
-                logging: false,
-                useCORS: true
-            }).then(canvas => {
-                const link = document.createElement('a');
-                link.download = `Struk_DJANDES_${customerName.replace(/\s+/g, '_')}_${window.appData.activeNotaId}.png`;
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-                
-                captureContainer.innerHTML = ""; // Bersihkan kembali
-                window.showNotification('✓ Gambar Struk sukses disimpan!', 'success');
-            }).catch(err => {
-                console.error(err);
-                window.showNotification('Gagal memproses gambar struk.', 'error');
-            });
-        };
-
-        // BINDING EVENT LISTENERS INTERAKTIF
+        // EVENT LISTENERS
         document.getElementById('mode-menu-btn').addEventListener('click', function() {
             window.appData.currentMode = "menu";
             this.className = "px-4 py-1.5 rounded-md text-xs font-bold transition bg-white text-amber-600 shadow-xs";
@@ -1080,41 +709,31 @@
         document.getElementById('pickup-time').addEventListener('input', calculateFinances);
         document.getElementById('payment-status').addEventListener('change', calculateFinances);
         document.getElementById('amount-paid').addEventListener('input', calculateFinances);
-        document.getElementById('search-log-input').addEventListener('input', fetchLogTransactions);
-        document.getElementById('filter-log-status').addEventListener('change', fetchLogTransactions);
 
         document.getElementById('connect-printer-btn').addEventListener('click', function() {
             if (window.DjandesPrinter) window.DjandesPrinter.connect();
         });
 
-        // AUTO-SAVE LOG DI BALIK LAYAR SAAT PRINT DICLICK
-        document.getElementById('print-btn').addEventListener('click', async function() {
-            const hasItems = Object.keys(window.appData.cart).length > 0;
-            if (!hasItems) {
-                window.showNotification('Keranjang belanja kosong!', 'warning');
-                return;
+        document.getElementById('print-btn').addEventListener('click', function() {
+            if (window.DjandesPrinter) {
+                window.DjandesPrinter.print();
+            } else {
+                window.showNotification('Driver printer tidak ditemukan!', 'error');
             }
-
-            // Memicu auto save ke log jika nota baru atau dalam mode edit pelunasan sebelum dicetak
-            if (!window.appData.isReadOnlyMode) {
-                await saveTransactionToCloud();
-            }
-
-            if (window.DjandesPrinter) window.DjandesPrinter.print();
-            else window.showNotification(`Perintah cetak terkirim untuk Nota #${window.appData.activeNotaId}`, 'success');
         });
 
         window.addEventListener('DOMContentLoaded', () => {
             loadSupabaseProducts();
             if (window.DjandesPrinter) window.DjandesPrinter.updateUI();
         });
-
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('Offline Ready.', reg))
-                    .catch(err => console.error(err));
-            });
-        }
+// Registrasi Service Worker agar web bisa dibuka saat Offline total
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('Aplikasi siap digunakan Offline!', reg))
+            .catch(err => console.error('Gagal memuat sistem offline:', err));
+    });
+}
     </script>
 </body>
+</html>
