@@ -415,7 +415,7 @@
 
     <table>
         ${notaRow}
-        <tr><td>Jam</td><td>: ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} (${now.toLocaleDateString('id-ID', {day:'2-digit', month:'2-digit'})})</td></tr>
+        <tr><td>Jam</td><td>: ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</td></tr>
         <tr><td>Cust</td><td>: ${customerName.toUpperCase()}</td></tr>
         <tr><td>Tgl</td><td>: ${dateFormatted} (${pickupTime})</td></tr>
     </table>
