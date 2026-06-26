@@ -167,7 +167,7 @@
         // Metadata Atas
         const now = new Date();
         if(activeNotaId) {
-            line('Nota   : #' + activeNotaId);
+            line('Nota   : ' + activeNotaId);
         }
         line('Jam    : ' + now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' (' + now.toLocaleDateString('id-ID', {day:'2-digit', month:'2-digit'}) + ')');
         line('Cust   : ' + customerName.toUpperCase());
