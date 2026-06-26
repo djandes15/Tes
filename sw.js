@@ -1,6 +1,7 @@
 const CACHE_NAME = 'djandes-v3'; // Naikkan versi ke v3 agar browser mendownload ulang script yang benar
 const ASSETS = [
     '/',                    // Root domain Vercel
+    '/pos',                 // Jalur URL /pos yang Anda buka di browser
     '/pos.html',            // File fisik HTML Anda
     '/configpos.js',        // File config Anda
     '/printerpos.js',       // File printer Anda
